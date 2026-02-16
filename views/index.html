@@ -1,0 +1,107 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini Profile + Photo Uploader</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body>
+    <h1>Mini Profile + Photo Uploader</h1>
+    <p>
+      This demo saves profile data to <b>Cosmos DB</b> and images to
+      <b>Blob Storage</b>.
+    </p>
+
+    <div class="card">
+      <h2>Create Profile</h2>
+
+      <form id="profileForm">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" placeholder="Enter your name" required />
+
+        <label for="age">Age</label>
+        <input id="age" name="age" type="number" min="0" placeholder="Enter your age" required />
+
+        <label for="bio">Bio</label>
+        <textarea id="bio" name="bio" rows="4" placeholder="Tell us about yourself" required></textarea>
+
+        <label for="photo">Profile Picture</label>
+        <input id="photo" name="photo" type="file" accept="image/*" required />
+        <small>Choose a small image for faster upload.</small>
+
+        <button type="submit" id="createBtn">Create</button>
+      </form>
+
+      <div id="resultCard" class="card" style="display: none; margin-top: 16px;">
+        <h3>Profile Created ✅</h3>
+        <p>
+          Open profile:
+          <a id="profileLink" href="#" target="_blank" rel="noreferrer"></a>
+        </p>
+        <img id="previewImg" alt="Uploaded profile" style="max-width: 250px; display: none;" />
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("profileForm");
+      const createBtn = document.getElementById("createBtn");
+      const resultCard = document.getElementById("resultCard");
+      const profileLink = document.getElementById("profileLink");
+      const previewImg = document.getElementById("previewImg");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        createBtn.disabled = true;
+        createBtn.textContent = "Creating...";
+
+        try {
+          // 1) Upload image to Blob via /api/upload
+          const file = document.getElementById("photo").files[0];
+          const fd = new FormData();
+          fd.append("photo", file);
+
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!uploadRes.ok) throw new Error(await uploadRes.text());
+          const { imageUrl } = await uploadRes.json();
+
+          // 2) Create profile in Cosmos via /api/profiles
+          const payload = {
+            name: document.getElementById("name").value.trim(),
+            age: Number(document.getElementById("age").value),
+            bio: document.getElementById("bio").value.trim(),
+            imageUrl,
+          };
+
+          const createRes = await fetch("/api/profiles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (!createRes.ok) throw new Error(await createRes.text());
+          const created = await createRes.json();
+
+          // 3) Show the profile link
+          const url = `${window.location.origin}/profile/${created.id}`;
+          profileLink.href = url;
+          profileLink.textContent = url;
+
+          resultCard.style.display = "block";
+
+          // Optional preview of the uploaded blob image
+          previewImg.src = imageUrl;
+          previewImg.style.display = "block";
+        } catch (err) {
+          alert("Error: " + (err?.message || err));
+          console.error(err);
+        } finally {
+          createBtn.disabled = false;
+          createBtn.textContent = "Create";
+        }
+      });
+    </script>
+  </body>
+</html>
